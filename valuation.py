@@ -266,20 +266,8 @@ def get_growth_data(section: str):
         return None
     growth_data = DRIVER.find_element(By.XPATH, XPATHS.get(section))\
         .text.splitlines()
-    # print('GROWTH DATA')
-    # print(growth_data)
-    # print(growth_data.text)
-    # for i, v in enumerate(growth_data):
-    #     print(i, v.text)
-    # print('GROWTH YEARS')
-    # print(growth_data[0].split())
     years = growth_data[0].split()[2:-2]
-    # print(years)
     select_years = get_years(years)[::-1]  # Reverse list
-    # print('SELECTED YEARS')
-    # print(select_years)
-    # select_years = [pd.to_datetime(yr, format='%Y/%m').year if '-' in yr else '' for yr in years]
-    # print(select_years)
 
     rev_final = transform(growth_data[1:5], section=section)
     eps_final = transform(growth_data[-4:], section=section)
@@ -297,27 +285,17 @@ def get_operating_and_efficiency_data(section: str):
     """
     if not data_available(XPATHS.get('op_eff_years'), section):
         return None, None, None
-    # if not data_available(XPATHS.get('op_eff'), section):
-    #     return None, None, None
     op_eff_years = DRIVER.find_element(By.XPATH, XPATHS.get('op_eff_years'))\
         .text.splitlines()[1:-2]
-    # print('OP EFF YEARS')
-    # print(op_eff_years)
+
     select_years = get_years(op_eff_years)[::-1]  # Reverse list
-    # print('SELECTED YEARS')
-    # print(select_years)
     op_eff_data = DRIVER.find_element(By.XPATH, XPATHS.get('op_eff'))\
         .text.splitlines()
+
     roe_element = [op_eff_data[6]]
-    # print('ROE ELEMENT')
-    # print(roe_element)
     roic_element = [op_eff_data[7]]
-    # for i, v in enumerate(op_eff_data):
-    #     print(i, v)
     roe = transform(roe_element, section=section)
     roic = transform(roic_element, section=section)
-    # roe = transform(roe_element, INDEXES.get(section), section=section)
-    # roic = transform(roic_element, INDEXES.get(section), section=section)
     return roe, roic, select_years
 
 def get_financial_health_data(section: str):
@@ -349,7 +327,6 @@ def get_cash_flow_data(section: str):
         return None
     cash_flow = DRIVER.find_element(By.XPATH, XPATHS.get('cash_flow'))\
         .text.splitlines()
-    # print(cash_flow)
     return transform(cash_flow, section=section)
 
 
@@ -421,11 +398,6 @@ def get_mos_price(stock: str, moat: pd.DataFrame):
         _type_: _description_
     """
     current_eps = si.get_quote_data(stock).get('epsCurrentYear')
-    # print('CURRENT EPS')
-    # print(current_eps)
-    # print(moat.iloc[-1])
-    # print('EPS GR')
-    # print(EPS_GR)
     if moat is not None:
         global EPS_GR
         EPS_GR = np.nanmean(moat.iloc[-1])/100
@@ -436,24 +408,14 @@ def get_mos_price(stock: str, moat: pd.DataFrame):
 
     if current_eps is None:
         return None
-    # print('EPS GR')
-    # print(EPS_GR)
+
     # EPS estimated growth rate
-    # print('EPS FVs')
     eps_fv = npf.fv(EPS_GR, 10, 0, -current_eps)
-    # print(eps_fv)
     eps_fv = current_eps*(1+EPS_GR)**(10)
-    # print(eps_fv)
-    # print('PE FV')
     pe_fv = EPS_GR*2*100
-    # print(pe_fv)
     price_fv = eps_fv*pe_fv
-    # print('PRICE FV')
-    # print(price_fv)
 
     intrinsic_value = npf.pv(MARR, 10, 0, -price_fv)
-    # print('intrinsic_value')
-    # print(intrinsic_value)
     return intrinsic_value/2
 
 
@@ -473,15 +435,13 @@ def get_years(years: list):
     Returns:
         list: Desired years in a list.
     """
-    # print('GETTING YEARS')
-    # print(years)
     years = [pd.to_datetime(yr, format='%Y', exact=False).year for yr in years]
-    # print(years)
     idxs = check_length(years, years=True)
-    if idxs is None:
-        print('Function "check_years" failed to account for other test cases.')
-        return None
-    return [years[i] for i in idxs]
+    if idxs is not None:
+        return [years[i] for i in idxs]
+
+    print('Function "check_years" failed to account for other test cases.')
+    return None
 
 
 def is_missing(s: str):
@@ -521,15 +481,11 @@ def get_data_averages(df: pd.DataFrame):
     try:
         if df is None:
             return None
-        # na_cols = [moat[col].isnull().any() for col in moat.columns]
-        # if any(na_cols):
-        #     return None
         avgs = [np.nanmean(df[col]) for col in df.columns]
-        # print('MOAT AVGS')
-        # print(moat)
         df.index.insert(-1, 'Avgs')
         df.loc['Avgs'] = avgs
         return df
+
     except RuntimeWarning:
         print('Warning: ROE or ROIC missing.')
         return None
@@ -633,7 +589,6 @@ def scrape_data_format1(rows: list,
         _type_: _description_
     """
     idxs = check_length(rows)
-
     if idxs is None:
         return None
 
@@ -649,9 +604,6 @@ def scrape_data_format1(rows: list,
 
     # Matches the index with the row
     locator = [*zip(idxs, rows)]
-    # print('LOCATOR')
-    # for row, i in locator:
-    #     print(i, row)
     return [float(row[i]) if not is_missing(row[i]) else np.nan for i, row in locator]
 
 
@@ -668,19 +620,13 @@ def scrape_data_format2(rows: list):
         # Discard "5-Yr" column
         rows = [rows[0][:-1]]
         idxs = check_length(rows)
-        # print('INDEXES RETURNED FROM CHECK')
-        # print(idxs)
         if idxs is None:
             return None
-        # if missing_data(rows):
-        #     return None
-        # print('SCRAPE FORMAT 2')
-        # print(idxs)
-        # print(rows)
+
         row_cleaned = [float(v) if not is_missing(v) else np.nan for v in rows[0]]
-        # print(rows)
         return [np.nanmean(row_cleaned[i:-1]) if i != idxs[-1]
                 else row_cleaned[-2] for i in idxs]
+
     except RuntimeWarning:
         print('Warning: ROE or ROIC missing.')
         return None
@@ -711,14 +657,8 @@ def transform(source: list, section: str):
     Returns:
         _type_: _description_
     """
-    # print(f'SOURCE: {section}')
-    # print(source)
-    # print(type(source))
     value = [value.split() for value in source]
-    # print(value)
     value = moat_data_cleaner(value)
-    # print('TRANSFORMED TO SCRAPE')
-    # print(value)
     return scrape_data(value, section)
 
 
