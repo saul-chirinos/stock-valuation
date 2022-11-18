@@ -28,7 +28,6 @@ OPTIONS.add_argument("--window-size=%s" % WINDOW_SIZE)
 OPTIONS.add_experimental_option('excludeSwitches', ['enable-logging'])
 
 # Which index to select while going through each row in the tables
-# TODO: Shorten code (DRY principle)
 INDEXES = {
     'years' : {
         10: [-1, -4, -6, -8, -11],
@@ -77,7 +76,6 @@ NA = '—'
 
 
 S = Service(PATH)
-# DRIVER = Chrome(service=S)
 DRIVER = Chrome(service=S, options=OPTIONS)
 
 
@@ -105,9 +103,6 @@ def check_rows(rows: list):
 
 
 def check_years(rows: list):
-    # print('CHECKING YEARS')
-    # print(rows)
-    # print(len(rows))
     if len(rows) >= 11:
         return INDEXES['years'].get(10)
     elif len(rows) >= 8:
@@ -151,14 +146,14 @@ def create_dataframes(revenue: list, eps: list, bvps: list, roe: list, roic: lis
     """Stores data into dataframes.
 
     Args:
-        revenue (list): _description_
-        eps (list): _description_
-        bvps (list): _description_
-        roe (list): _description_
-        roic (list): _description_
+        revenue (list): List containing revenues.
+        eps (list): List containing eps.
+        bvps (list): List containing book value per share.
+        roe (list): List containing return on equity.
+        roic (list): List containing return on invested capital.
 
     Returns:
-        _type_: _description_
+        pd.DataFrame: Moat and management dataframes.
     """
     try:
         if growth_yrs is not None:
@@ -201,7 +196,7 @@ def data_available(xpath: str, section: str):
         section (str): Section being searched.
 
     Returns:
-        bool: True if element(s) found, otherwise False
+        bool: True if element(s) found, otherwise False.
     """
     try:
         WebDriverWait(DRIVER, 3).until(
@@ -230,14 +225,14 @@ def get_currency(id):
 
 def get_data(section: str, locator: str, growth_section: bool = False,
              op_eff_section: bool = False, fin_health_section: bool = False):
-    """_summary_
+    """Get data according to which section is being searched.
 
     Args:
-        section (str): Section being searched
-        locator_idx (str): _description_
+        section (str): Section being searched.
+        locator (str): Button ID tag in HTML.
 
     Returns:
-        _type_: _description_
+        list|float: Returns a list or a float depending on the section.
     """
     click_button(locator)
     if growth_section:
@@ -253,14 +248,15 @@ def get_data(section: str, locator: str, growth_section: bool = False,
 
 
 def get_growth_data(section: str):
-    """Searches for "Revenue %", "EPS %", and years on file in the "Growth"
+    """Searches for "Revenue %", "EPS %", and years in the "Growth"
     section by XPATH and returns it.
 
     Args:
-        section (str): _description_
+        section (str): The section to be searched.
 
     Returns:
-        list: Returns values in lists
+        list: Returns values relative to the current year in a list and the
+        years selected by INDEXES. None if conditions are not met.
     """
     if not data_available(XPATHS.get('growth'), section):
         return None
@@ -275,13 +271,15 @@ def get_growth_data(section: str):
 
 
 def get_operating_and_efficiency_data(section: str):
-    """Searches for "" in "" section by XPATH and returns it.
+    """Searches for "Return on Equity %" and "Return on Invested Capital %"
+    in "Operating and Efficiency" section by XPATH and returns it.
 
     Args:
-        section (str): _description_
+        section (str): The section to be searched.
 
     Returns:
-        _type_: _description_
+        list: Returns average values relative to the current year and the years
+        selected by INDEXES. None if conditions are not met.
     """
     if not data_available(XPATHS.get('op_eff_years'), section):
         return None, None, None
@@ -299,13 +297,14 @@ def get_operating_and_efficiency_data(section: str):
     return roe, roic, select_years
 
 def get_financial_health_data(section: str):
-    """Searches for "" in "" section by XPATH and returns it.
+    """Searches for "Book Value/Share" in "Financial Health" section by XPATH and returns it.
 
     Args:
-        section (str): _description_
+        section (str): The section to be searched.
 
     Returns:
-        _type_: _description_
+        list: Returns values relative to the current year.
+              None if conditions are not met.
     """
     if not data_available(XPATHS.get('fin_health'), section):
         return None
@@ -318,10 +317,11 @@ def get_cash_flow_data(section: str):
     """Searches for "Free Cash Flow/Share" in "Cash Flow" section by XPATH and returns it.
 
     Args:
-        section (str): _description_
+        section (str): The section to be searched.
 
     Returns:
-        _type_: _description_
+        float: Returns value of the most recent year recorded.
+               None if conditions are not met.
     """
     if not data_available(XPATHS.get('cash_flow'), section):
         return None
@@ -330,28 +330,17 @@ def get_cash_flow_data(section: str):
     return transform(cash_flow, section=section)
 
 
-def get_top50():
-    """Getting the indusrty of each top 50 stock.
-
-    Returns:
-        _type_: _description_
-    """
-    DRIVER.get('https://www.morningstar.com/stocks')
-    top50 = WebDriverWait(DRIVER, 10).until(
-        EC.presence_of_element_located((By.XPATH, '//*[@class="mdc-carousel mdc-card-deck__carousel mdc-carousel--scrollable"]'))
-    )
-    top50 = top50.text.splitlines()
-    return [v for v in top50 if '(' not in v]
-
-
 def get_ten_cap_price(ticker: str, fcfps: np.float64, industry: str = None):
-    """_summary_
+    """Calculates the price of a stock to be 10x owner earnings/share.
 
     Args:
-        stock (str): _description_
+        ticker (str): Ticker symbol.
+        fcfps (np.float64): Free cash flow per share.
+        industry (str, optional): Check if industry is Financial Services.
+                                  Defaults to None.
 
     Returns:
-        _type_: _description_
+        float: Ten cap value. None if conditions are not met.
     """
     try:
         if fcfps is None:
@@ -388,21 +377,22 @@ def get_ten_cap_price(ticker: str, fcfps: np.float64, industry: str = None):
     except TypeError:
         return None
 
-def get_mos_price(stock: str, moat: pd.DataFrame):
-    """_summary_
+def get_mos_price(ticker: str, moat: pd.DataFrame):
+    """Calculates the margin of safety price of a stock by finding its
+    instrinsic value and dividing by two.
 
     Args:
-        stock (str): _description_
+        ticker (str): Ticker symbol.
+        moat (pd.DataFrame): Moat dataframe needed to grab averages.
 
     Returns:
-        _type_: _description_
+        float: The margin of safety price. None if conditions are not met.
     """
-    current_eps = si.get_quote_data(stock).get('epsCurrentYear')
+    current_eps = si.get_quote_data(ticker).get('epsCurrentYear')
     if moat is not None:
         global EPS_GR
         EPS_GR = np.nanmean(moat.iloc[-1])/100
 
-    # Any eps growth rates higher than the limit set to default
     if EPS_GR > EPS_GR_LIM:
         EPS_GR = 0.1
 
@@ -411,7 +401,7 @@ def get_mos_price(stock: str, moat: pd.DataFrame):
 
     # EPS estimated growth rate
     eps_fv = npf.fv(EPS_GR, 10, 0, -current_eps)
-    eps_fv = current_eps*(1+EPS_GR)**(10)
+
     pe_fv = EPS_GR*2*100
     price_fv = eps_fv*pe_fv
 
@@ -420,6 +410,15 @@ def get_mos_price(stock: str, moat: pd.DataFrame):
 
 
 def get_8_year_payback_price(fcfps: float):
+    """Calculates the price as the sum of free cash flow per share future
+    values. Uses the minimal acceptable rate of return (MARR) as the rate.
+
+    Args:
+        fcfps (float): Free cash flow per share for the most recent year.
+
+    Returns:
+        float: The sum of future values over ten years. None if fcfps is None.
+    """
     if fcfps is None:
         return None
     fcf_fvs = [npf.fv(MARR, year, 0, -fcfps) for year in range(1, 11)]
@@ -433,7 +432,7 @@ def get_years(years: list):
         years (list): Years to clean inside a list.
 
     Returns:
-        list: Desired years in a list.
+        list: Selected years in a list.
     """
     years = [pd.to_datetime(yr, format='%Y', exact=False).year for yr in years]
     idxs = check_length(years, years=True)
@@ -445,13 +444,13 @@ def get_years(years: list):
 
 
 def is_missing(s: str):
-    """_summary_
+    """Checks if a value is missing.
 
     Args:
-        s (str): _description_
+        s (str): String to be checked.
 
     Returns:
-        _type_: _description_
+        bool: True if value is not missing. False otherwise.
     """
     return True if NA in s else False
 
@@ -461,22 +460,22 @@ def is_valid(s: str):
     Checks if a decimal or dash is in a string.
 
     Args:
-        s (str): _description_
+        s (str): String to be searched.
 
     Returns:
-        _type_: _description_
+        bool: True if condition holds. False otherwise.
     """
     return True if '.' in s or is_missing(s) else False
 
 
 def get_data_averages(df: pd.DataFrame):
-    """_summary_
+    """Gets the averages across all company metrics.
 
     Args:
-        moat (pd.DataFrame): _description_
+        df (pd.DataFrame): Dataframe to get averages.
 
     Returns:
-        _type_: _description_
+        _type_: Dataframe with averages. None if RuntimeWarning.
     """
     try:
         if df is None:
@@ -505,24 +504,23 @@ def get_links():
 
 
 def moat_data_cleaner(data: list):
-    """_summary_
+    """Scrapes only values that are numbers.
 
     Args:
-        data (list): _description_
+        data (list): List of values to scrape.
 
     Returns:
-        _type_: _description_
+        list: List of cleaned values.
     """
     return [[elem.replace(',', '') for elem in data_list if is_valid(elem)] for data_list in data]
 
 
 def page_load_catalyst():
-    """Web driver clicks all buttons once located to load data.
+    """Web driver clicks all buttons once located to load data faster.
     """
-    for locator in LOCATORS[:4]:  # Key stats buttons
-        WebDriverWait(DRIVER, 10).until(
+    for locator in LOCATORS:
+        WebDriverWait(DRIVER, 5).until(
             EC.presence_of_element_located((By.XPATH, f'//button[@id="{locator}"]'))
-            # EC.element_to_be_clickable((By.XPATH, f'//button[@id="{locator}"]'))
         ).click()
 
 
@@ -537,14 +535,15 @@ def get_debt_to_earnings_ratio(ticker: str):
         float: Debt to income ratio.
     """
     try:
-        # Debt to net income ratio
         long_term_debt = si.get_balance_sheet(ticker).loc['longTermDebt'][0]
         earnings = si.get_income_statement(ticker).loc['netIncome'][0]
         de = long_term_debt/earnings
         return de.round(1)
+
     except KeyError as err:
         print(f'ERROR ~ {err} missing.')
         return None
+
     except IndexError as err:
         print('ERROR ~ trouble getting long term debt or net income')
         print(err)
@@ -561,7 +560,6 @@ def scrape_data(rows: list, section: str):
     Returns:
         float: The value returned from a scrape format.
     """
-    # try:
     if section == 'growth':
         return scrape_data_format1(rows)
 
@@ -570,7 +568,6 @@ def scrape_data(rows: list, section: str):
 
     elif section == 'fin_health':
         return scrape_data_format1(rows, fin_health_section=True)
-        # return scrape_data_format_3(rows)
 
     return scrape_data_format1(rows, cash_flow_section=True)
 
@@ -578,15 +575,18 @@ def scrape_data(rows: list, section: str):
 def scrape_data_format1(rows: list,
                         fin_health_section: bool = False,
                         cash_flow_section: bool = False):
-    """_summary_
+    """Scrapes data in a format shared by sections growth, financial health,
+    and cash flow.
 
     Args:
-        rows (list): _description_
-        idxs (list): _description_
-        section (str): _description_
+        rows (list): List of rows.
+        fin_health_section (bool, optional): True if scraping section.
+                                             Defaults to False.
+        cash_flow_section (bool, optional): True if scraping section.
+                                            Defaults to False.
 
     Returns:
-        _type_: _description_
+        list: Desired values.
     """
     idxs = check_length(rows)
     if idxs is None:
@@ -608,13 +608,14 @@ def scrape_data_format1(rows: list,
 
 
 def scrape_data_format2(rows: list):
-    """_summary_
+    """Scrapes data in the operating and efficiency section.
+
     Args:
-        rows (list): _description_
-        idxs (list): _description_
+        rows (list): List of rows.
 
     Returns:
-        _type_: _description_
+        float: The average values relative to the current year.
+                None if RuntimeWarning.
     """
     try:
         # Discard "5-Yr" column
@@ -631,38 +632,23 @@ def scrape_data_format2(rows: list):
         print('Warning: ROE or ROIC missing.')
         return None
 
-def scrape_data_format_3(rows: list):
-    """_summary_
-
-    Args:
-        rows (list): _description_
-        idxs (list): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    idxs = check_length(rows)
-    bvps_final = scrape_data_format1(rows, idxs, fin_health_section=True)
-    return bvps_final
-
 
 def transform(source: list, section: str):
     """Takes in a list of the data with rows split by lines.
 
     Args:
         source (list): List of row lists.
-        idxs (list): Indexes to index row lists.
         section (str): Section
 
     Returns:
-        _type_: _description_
+        list|float: Final values to be analyzed.
     """
     value = [value.split() for value in source]
     value = moat_data_cleaner(value)
     return scrape_data(value, section)
 
 
-def print_results(stock_info: str, industries: list, moat: pd.DataFrame, management: pd.DataFrame, fcfps: float):
+def print_results(stock_info: str, moat: pd.DataFrame, management: pd.DataFrame, fcfps: float):
     """Prints all relevant information for valuation.
 
     Args:
@@ -674,6 +660,7 @@ def print_results(stock_info: str, industries: list, moat: pd.DataFrame, managem
     ticker = stock_info.split()[0]
     try:
         industry = si.get_company_info(ticker).loc['sector']['Value']
+
     except TypeError:
         industry = 'NA'
         pass
@@ -714,12 +701,11 @@ def print_results(stock_info: str, industries: list, moat: pd.DataFrame, managem
 
 def main():
     """Runs the entire pipeline to value a stock: data collection through webscraping,
-    data cleaning, data manipulation, and stock valuation.
-    Top 50 most viewed stocks
+    data cleaning, data manipulation, and stock valuation. Prints the top 50 most
+    viewed stocks.
     """
     try:
         start_time = time.time()
-        industries = get_top50()
         links = get_links()
         for link in links:
             DRIVER.get(link)
@@ -737,7 +723,7 @@ def main():
                 rev_final, eps_final, bvps_final,
                 roe_final, roic_final, growth_yrs, op_eff_yrs
             )
-            print_results(stock_name, industries, moat, management, fcfps_final)
+            print_results(stock_name, moat, management, fcfps_final)
 
         DRIVER.quit()
         time_taken = time.time() - start_time
