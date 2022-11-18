@@ -1,1 +1,1 @@
-# stock-valuation
+# Stock Valuation
