@@ -1,6 +1,5 @@
 import sys
 import time
-import warnings
 
 import numpy as np
 import numpy_financial as npf
@@ -17,7 +16,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException
 
 pd.set_option('display.float_format', lambda x: '%.2f' % x)
-warnings.filterwarnings('ignore')
 
 PATH = 'C:\\Program Files\chromedriver.exe'
 WINDOW_SIZE = '1920,1080'
@@ -45,9 +43,11 @@ INDEXES = {
     }
 }
 
+# Element locators
 ROOT_XPATH = '//*[@id="__layout"]/div/div/div[2]/div[3]/main/div[2]/div/div/div[1]/sal-components/div/sal-components-stocks-valuation/div/div[2]/div/div/div'
 DIVS = '/div/div/div/div/div'
 XPATHS = {
+    'top50': '//*[@class="mdc-list-group__item mds-list-group__item mds-list-group__item--no-top-border"]',
     'growth_years': ROOT_XPATH+'[3]'+DIVS+'/div[1]/table/tbody/tr[1]',
     'growth': ROOT_XPATH+'[3]'+DIVS+'/div[1]/table/tbody',
     'op_eff_years': ROOT_XPATH+'[4]'+DIVS+'[1]/table/thead',
@@ -58,6 +58,7 @@ XPATHS = {
     'cash_flow': ROOT_XPATH+'[6]'+DIVS+'/div[1]/table/tbody/tr[6]'
 }
 
+# Button locators
 LOCATORS = [
     'keyStatsgrowthTable',
     'keyStatsOperatingAndEfficiency',
@@ -65,23 +66,22 @@ LOCATORS = [
     'keyStatscashFlow',
 ]
 
+# Constants
 MARR = 0.15
 EPS_GR = 0.1
 EPS_GR_LIM = 0.25
+
 TICKER_BRIDGE = {
     'BRK.B': 'BRK-B'
 }
 
 NA = '—'
 
-
 S = Service(PATH)
 DRIVER = Chrome(service=S, options=OPTIONS)
 
 
 def check_length(rows: list, years: bool = False):
-    # TODO: Look into case statements in python, maybe they will make
-    # the code in check_years and check_rows more clean and efficient
     if years:
         return check_years(rows)
     return check_rows(rows)
@@ -491,15 +491,17 @@ def get_data_averages(df: pd.DataFrame):
 
 
 def get_links():
-    """Getting links of top 50 most viewed stocks from Morning Star.
+    """Getting links of top 50 most viewed stocks from morningstar.com.
 
     Returns:
-        list: List containing top 50 stock links
+        list: List containing stock links
     """
-    search = WebDriverWait(DRIVER, 10).until(
-    EC.presence_of_element_located((By.XPATH, '//*[@class="mdc-link mds-list-group__link"]'))
-    ).find_elements(By.XPATH, '//*[@class="mdc-link mds-list-group__link"]')[36:68]
-    links = [elem.get_attribute('href').replace('quote', 'valuation') for elem in search]
+    DRIVER.get('https://www.morningstar.com/stocks')
+    parent_nodes = WebDriverWait(DRIVER, 10).until(
+        EC.presence_of_all_elements_located((By.XPATH, XPATHS.get('top50')))
+    )[:32]
+    child_nodes = [elem.find_element(By.XPATH, './/*') for elem in parent_nodes]
+    links = [node.get_attribute('href').replace('quote', 'valuation') for node in child_nodes]
     return links
 
 
@@ -670,6 +672,7 @@ def print_results(stock_info: str, moat: pd.DataFrame, management: pd.DataFrame,
     management = get_data_averages(management)
 
     # Price calculations
+    current_price = si.get_quote_data(ticker).get('regularMarketPrice')
     ten_cap = get_ten_cap_price(ticker, fcfps, industry)
     mos = get_mos_price(ticker, moat)
     payback = get_8_year_payback_price(fcfps)
@@ -690,7 +693,10 @@ def print_results(stock_info: str, moat: pd.DataFrame, management: pd.DataFrame,
     if fcfps is not None:
         print(f'\nDebt/Earnings: {de}\n')
 
-    print('Price Targets')
+    if current_price is not None:
+        print(f'Current Price: ${current_price}')
+    else:
+        print(f'Current Price: {current_price}')
     if mos is not None:
         print(f'MOS: ${int(mos)}')
 
@@ -723,7 +729,8 @@ def main():
                 rev_final, eps_final, bvps_final,
                 roe_final, roic_final, growth_yrs, op_eff_yrs
             )
-            print_results(stock_name, moat, management, fcfps_final)
+            if moat is not None or management is not None:
+                print_results(stock_name, moat, management, fcfps_final)
 
         DRIVER.quit()
         time_taken = time.time() - start_time
